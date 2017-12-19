@@ -32,21 +32,50 @@ class WaypointUpdater(object):
         rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
 
         # TODO: Add a subscriber for /traffic_waypoint and /obstacle_waypoint below
-
+	
 
         self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
 
         # TODO: Add other member variables you need below
-
+	self.saved_base_waypoints = None
+	self.current_pose = None
+	self.speed = 4.0	
+	
         rospy.spin()
 
     def pose_cb(self, msg):
+	"""
+	Message Type :geometry_msgs/PoseStamped
+	PoseStamped
+	  header
+	  pose
+	"""
         # TODO: Implement
-        pass
+        self.current_pose = msg
+
+
+	#Setup test publish
+	lane = Lane()
+
+	for i in range(LOOKAHEAD_WPS):
+		new_point = Waypoint()
+		new_point.twist.twist.linear.x = self.speed
+		lane.waypoints.append(new_point)
+
+
+	self.final_waypoints_pub.publish(lane) 
 
     def waypoints_cb(self, waypoints):
-        # TODO: Implement
-        pass
+        """
+	###Lane on /base_waypoints only publish once###
+	Message Type: styx_msgs/Lane
+	Lane 
+	  header
+	  waypoints[]
+			
+	"""
+	# TODO: Implement
+        self.saved_base_waypoints = waypoints
 
     def traffic_cb(self, msg):
         # TODO: Callback for /traffic_waypoint message. Implement
