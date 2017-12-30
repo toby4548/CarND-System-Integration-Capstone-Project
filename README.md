@@ -1,7 +1,7 @@
 ### Team Callindra Member
 Pradeep Banavara(Team Lead, E-mail: pradeep@callindra.com)  
 Salvatore Campagna(E-mail: salvatorecampagna@gmail.com)  
-**Yuan-Yao Huang(Udacity Account Mail: toby4548@hottmail.com**  
+**Yuan-Yao Huang(Udacity Account Mail: toby4548@hottmail.com)**  
 Fabio Valerio Massoli(E-mail: fabiovaleriomassoli@gmail.com)  
 Laszlo Keri(E-mail: laszlo.keri@protonmail.com)  
 
