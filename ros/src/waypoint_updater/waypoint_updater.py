@@ -3,6 +3,7 @@
 import rospy
 from geometry_msgs.msg import PoseStamped
 from styx_msgs.msg import Lane, Waypoint
+from std_msgs.msg import Int32
 
 import math
 
@@ -20,19 +21,23 @@ as well as to verify your TL classifier.
 
 TODO (for Yousuf and Aaron): Stopline location for each traffic light.
 '''
-
-LOOKAHEAD_WPS = 10 # Number of waypoints we will publish. You can change this number
-
+from geometry_msgs.msg import TwistStamped
+LOOKAHEAD_WPS = 100 # Number of waypoints we will publish. You can change this number
+MAX_DEACC = 2.0
+SAFTY_FACTOR = 0.9
 
 class WaypointUpdater(object):
     def __init__(self):
         rospy.init_node('waypoint_updater')
-
-        rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
+        
         rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
+        rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
 
         # TODO: Add a subscriber for /traffic_waypoint and /obstacle_waypoint below
-	
+        rospy.Subscriber('/current_velocity', TwistStamped, self.velocity_cb)
+	rospy.Subscriber('/traffic_waypoint', Int32, self.traffic_cb)
+
+        self.MAX_VEL_KPH = rospy.get_param('/waypoint_loader/velocity')
 
         self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
 
@@ -40,9 +45,56 @@ class WaypointUpdater(object):
         self.saved_base_waypoints = None
 	self.current_pose = None
         self.num_waypoints = None
-	self.speed = 4.0	
+        self.stop_wp_inx = None
+	self.speed = self.MAX_VEL_KPH*SAFTY_FACTOR/3.6
+        self.current_velocity = None	
 		
-        rospy.spin()
+        #rospy.spin()
+        self.loop()
+
+    def loop(self):
+        rate = rospy.Rate(1)
+        while not rospy.is_shutdown():
+            if (self.saved_base_waypoints is not None) and (self.current_pose is not None):
+                #check waypoints availability
+                if self.saved_base_waypoints is None:
+                    return
+
+	        # seach for the closest point
+                closest_waypoint, closest_index = self.find_closest_waypoint_with_index()
+
+                #Setup test publish
+	        lane = Lane()
+        
+	        for i in range(LOOKAHEAD_WPS):
+                    idx = (closest_index+i) % self.num_waypoints
+	            wp = self.saved_base_waypoints.waypoints[idx]
+                    new_waypoint = Waypoint()
+                    new_waypoint.pose.pose.position = wp.pose.pose.position
+	            
+                    #set velocity for each point
+                    new_waypoint.twist.twist.linear.x = self.speed
+                    if self.stop_wp_inx is not None:
+	                if (self.stop_wp_inx is not None) and (i <= self.stop_wp_inx):
+                            sidx = self.stop_wp_inx
+                            stopdist = self.distance(self.saved_base_waypoints.waypoints, idx, sidx)
+                            currVel = self.current_velocity.twist.linear.x
+                            if stopdist < 2.*currVel*currVel/(2.* MAX_DEACC):
+                                new_waypoint.twist.twist.linear.x = 0.
+                            else:
+                                if stopdist < 4.*currVel*currVel/(2.* MAX_DEACC):
+                                    new_waypoint.twist.twist.linear.x = self.speed/2.
+                                else:
+                                    new_waypoint.twist.twist.linear.x = self.speed
+                
+                        else:
+                            new_waypoint.twist.twist.linear.x = 0.
+
+                    lane.waypoints.append(new_waypoint)
+
+	        self.final_waypoints_pub.publish(lane)       
+        
+            rate.sleep()
 
     def pose_cb(self, msg):
 	'''
@@ -53,26 +105,7 @@ class WaypointUpdater(object):
 	'''
         # TODO: Implement
         # save current pose from msg to class
-	self.current_pose = msg
-
-        #check waypoints availability
-        if self.saved_base_waypoints is None:
-            return
-
-	# seach for the closest point
-        closest_waypoint, closest_index = self.find_closest_waypoint_with_index()
-
-        #Setup test publish
-	lane = Lane()
-        
-	for i in range(LOOKAHEAD_WPS):
-	    new_waypoint = Waypoint()
-            new_waypoint.pose.pose.position = self.saved_base_waypoints.waypoints[(closest_index+i) % self.num_waypoints].pose.pose.position
-	    new_waypoint.twist.twist.linear.x = self.speed
-	    lane.waypoints.append(new_waypoint)
-
-
-	self.final_waypoints_pub.publish(lane) 
+	self.current_pose = msg       
     
     def waypoints_cb(self, waypoints):
         '''
@@ -89,9 +122,12 @@ class WaypointUpdater(object):
 	self.saved_base_waypoints = waypoints
         self.num_waypoints = len(waypoints.waypoints)
 
+    def velocity_cb(self,msg):
+        self.current_velocity = msg
+    
     def traffic_cb(self, msg):
         # TODO: Callback for /traffic_waypoint message. Implement
-        pass
+        self.stop_wp_inx = msg.data-10 if msg.data>=0 else None
 
     def obstacle_cb(self, msg):
         # TODO: Callback for /obstacle_waypoint message. We will implement it later
