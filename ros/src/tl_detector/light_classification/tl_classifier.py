@@ -8,7 +8,7 @@ from io import StringIO
 from utils import label_map_util
 from utils import visualization_utils as vis_util
 from styx_msgs.msg import TrafficLight
-
+#Source: https://github.com/tensorflow/models/blob/master/research/object_detection/object_detection_tutorial.ipynb
 
 class TLClassifier(object):
     def __init__(self):
